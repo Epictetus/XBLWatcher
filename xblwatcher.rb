@@ -3,7 +3,7 @@ require "xblagent.rb"
 $KCODE = "UTF-8"
 
 class XboxLiveWatcher
-	attr_accessor :status, :achievementsHash, :outputFunction
+	attr_accessor :status, :achievementsHash, :outputFunction, :lastPrintStatusTime, :lastActivateTime
 	def initialize(agent, config)
 		if File.exist?('watcherData.yaml') then
 			puts 'Initialize XBLWatcher From File.'
@@ -21,7 +21,8 @@ class XboxLiveWatcher
 		obj = YAML.load_file('watcherData.yaml')
 		@status = obj.status
 		@achievementsHash = obj.achievementsHash
-		@lastPrintStatusTime = Time.now - (60 * 60)
+		@lastPrintStatusTime = obj.lastPrintStatusTime
+		@lastActivateTime = obj.lastActivateTime
 	end
 
 	def initializeFromWEB(agent)
@@ -40,6 +41,10 @@ class XboxLiveWatcher
 		# ステータス変化ポストに制限をかけるためのタイマー
 		# 初期化時はかなり前の時刻にすることで初期起動時にステータス出力が実行されるようにする
 		@lastPrintStatusTime = Time.now - (60 * 60)
+
+		# 最終起動時刻を記録するタイマー
+		# 時間が経ちすぎていると怒濤の実績解除ポストする可能性があるので危険
+		@lastActivateTime = Time.now
 	end
 
 	def outputFunction(xblrubytter, message)
@@ -57,6 +62,8 @@ class XboxLiveWatcher
 
 	# ステータス/実績スコアに変化があるかを巡回
 	def watchXBL(agent, xblrubytter, messageHash)
+		@lastActivateTime = Time.now
+
 		# 最新のステータスと総実績ポイントを取得
 		statAndPoint = agent.getRecentStatusAndPoint()
 		newStatus = statAndPoint[0]
@@ -76,7 +83,8 @@ class XboxLiveWatcher
 	def reloadXBL(agent)
 		# XBLWatcherを最新の状態にする
 		# 前回起動時から時間が経ちすぎてる時用
-		
+		@lastActivateTime = Time.now
+
 		# 最新のステータスと総実績ポイントを取得
 		statAndPoint = agent.getRecentStatusAndPoint()
 		newStatus = statAndPoint[0]
@@ -156,15 +164,16 @@ class XboxLiveWatcher
 			# ゲームのタイトルに変化なし かつ オフラインではない かつ ゲームのステータスに変化あり
 			# 新しいゲームステータス
 		elsif newStatus['gameTitle'] != 'オフライン' and newStatus['gameTitle'] == @status['gameTitle'] and newStatus['gameStatus'] != @status['gameStatus']
-			# 最後にステータスを出力した時点から十五分経っていなければ出力しない
+			# 最後にステータスを出力した時点から十五分経っていれば出力する
 			if @lastPrintStatusTime + (60 * 15) < Time.now
 				# 前回の十五分
-				@limitPrintStatus = Time.now
+				@lastPrintStatusTime = Time.now
 				puts "/////newStatus//////////"
 				@status = newStatus
 				outputFunction(xblrubytter, self.translateMessage(messageHash['statusMessage']))
+			# 最後にステータスを出力した時点から十五分経っていなければ出力しない
 			else 
-				puts "/////まだ十五分経ってません//////////" + '  last printed: ' + @limitPrintStatus.to_s
+				puts "/////まだ十五分経ってません//////////" + '  last printed: ' + @lastPrintStatusTime.to_s
 			end
 		end
 	end
