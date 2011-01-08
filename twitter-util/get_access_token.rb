@@ -9,7 +9,6 @@ consumer = OAuth::Consumer.new(
   CONSUMER_KEY,
   CONSUMER_SECRET,
   :site => 'http://twitter.com'
-  #:proxy => 'http://proxy.fun.ac.jp:8080'
 )
 
 request_token = consumer.get_request_token
